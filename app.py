@@ -272,6 +272,7 @@ def extract_sale_details(transcript):
 # ── Routes ──
 
 @app.route("/")
+@app.route("/api/index")
 def dashboard():
     conn = get_db_connection()
 
