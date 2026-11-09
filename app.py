@@ -345,16 +345,19 @@ def add_product():
     return redirect(url_for("dashboard"))
 
 
-@app.route("/delete_product/<int:product_id>", methods=["POST"])
+@app.route("/delete_product/<int:product_id>", methods=["GET", "POST"])
 def delete_product(product_id):
     conn = get_db_connection()
 
     try:
+        # Unlink product from sales so foreign key constraints don't block deletion
+        conn.execute("UPDATE sales SET product_id = NULL WHERE product_id = ?", (product_id,))
         conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
         conn.commit()
         flash("Product deleted successfully!")
-    except Exception:
+    except Exception as e:
         conn.rollback()
+        print("[DELETE ERROR]", repr(e))
         flash("Unable to delete product.")
     finally:
         conn.close()
