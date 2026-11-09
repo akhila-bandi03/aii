@@ -1,6 +1,11 @@
+import os
 import sqlite3
 
-DATABASE = "dukaansaathi.db"
+# In Vercel serverless environment, only /tmp directory is writable
+if os.environ.get("VERCEL"):
+    DATABASE = "/tmp/dukaansaathi.db"
+else:
+    DATABASE = "dukaansaathi.db"
 
 
 def get_db_connection():
