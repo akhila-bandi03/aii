@@ -18,17 +18,42 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GNANI_API_KEY = os.getenv("GNANI_API_KEY")
-
 app = Flask(__name__)
-app.secret_key = "dukaansaathi-local-secret"
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dukaansaathi-local-secret")
 
-print("Gnani API Key Loaded:", bool(GNANI_API_KEY))
+_db_initialized = False
 
-stt_client = GnaniSTTClient(api_key=GNANI_API_KEY)
-tts_client = GnaniTTSClient(api_key=GNANI_API_KEY)
+@app.before_request
+def ensure_db():
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+        except Exception as e:
+            print("[WARN] DB init failed:", e)
+        _db_initialized = True
 
-init_db()
+
+def get_stt_client():
+    key = os.getenv("GNANI_API_KEY")
+    if not key:
+        return None
+    try:
+        return GnaniSTTClient(api_key=key)
+    except Exception as e:
+        print("[STT Init Error]", e)
+        return None
+
+
+def get_tts_client():
+    key = os.getenv("GNANI_API_KEY")
+    if not key:
+        return None
+    try:
+        return GnaniTTSClient(api_key=key)
+    except Exception as e:
+        print("[TTS Init Error]", e)
+        return None
 
 
 # ── Helper: Get product names from DB (for STT keywords) ──
@@ -51,7 +76,8 @@ def parse_with_evon(transcript, product_names):
     sale details from a voice transcript.
     Falls back to rule-based parsing if Evon is unavailable.
     """
-    if not GNANI_API_KEY:
+    api_key = os.getenv("GNANI_API_KEY")
+    if not api_key:
         return None
 
     product_list = ", ".join(product_names) if product_names else "none"
@@ -85,7 +111,7 @@ Rules:
         response = http_requests.post(
             "https://api.vachana.ai/v1/chat/completions",
             headers={
-                "X-API-Key-ID": GNANI_API_KEY,
+                "X-API-Key-ID": api_key,
                 "Content-Type": "application/json"
             },
             json={
@@ -423,8 +449,13 @@ def transcribe_audio():
         # Get product names for STT keyword boosting
         product_keywords = get_product_keywords()
 
+        client = get_stt_client()
+        if not client:
+            flash("Gnani API Key is missing or invalid. Please check settings.")
+            return redirect(url_for("dashboard"))
+
         # Send WAV file path to Gnani STT (Prisma) with keyword boosting
-        result = stt_client.transcribe(
+        result = client.transcribe(
             temp_path,
             language_code="te-IN",
             keywords=product_keywords if product_keywords else None,
@@ -632,7 +663,12 @@ def speak_text():
         return redirect(url_for("dashboard"))
 
     try:
-        audio = tts_client.synthesize(
+        client = get_tts_client()
+        if not client:
+            flash("Gnani API Key is missing.")
+            return redirect(url_for("dashboard"))
+
+        audio = client.synthesize(
             text,
             voice="Shivani",
             model="timbre-v3.0",
@@ -661,7 +697,27 @@ def speak_confirm():
         return jsonify({"error": "No confirmation to speak"}), 404
 
     try:
-        audio = tts_client.synthesize(
+        client = get_tts_client()
+        if not client:
+            return jsonify({"error": "TTS client not configured"}), 500
+
+        audio = client.synthesize(
+            confirm_text,
+            voice="Shivani",
+            model="timbre-v3.0",
+            language="te-IN"
+        )
+
+        return send_file(
+            BytesIO(audio),
+            mimetype="audio/wav",
+            as_attachment=False,
+            download_name="dukaansaathi_confirm.wav"
+        )
+
+    except Exception as e:
+        print("TTS Confirm Error:", repr(e))
+        return jsonify({"error": "TTS failed"}), 500
             confirm_text,
             voice="Shivani",
             model="timbre-v3.0",
