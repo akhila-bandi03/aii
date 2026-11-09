@@ -1,0 +1,32 @@
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Secrets & Environment variables
+.env
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Database
+*.db
+*.sqlite3
+
+# Audio recordings / temp files
+*.wav
+*.mp3
+*.ogg
+*.m4a
+temp/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+Microsoft/
