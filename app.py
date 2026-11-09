@@ -59,10 +59,10 @@ def get_tts_client():
 # ── Helper: Get product names from DB (for STT keywords) ──
 
 def get_product_keywords():
-    """Return all product names from the database as a list."""
+    """Return all active product names from the database as a list."""
     conn = get_db_connection()
     try:
-        rows = conn.execute("SELECT name FROM products").fetchall()
+        rows = conn.execute("SELECT name FROM products WHERE is_deleted = 0").fetchall()
         return [row["name"] for row in rows]
     finally:
         conn.close()
@@ -277,11 +277,11 @@ def dashboard():
     conn = get_db_connection()
 
     products = conn.execute(
-        "SELECT * FROM products ORDER BY id DESC"
+        "SELECT * FROM products WHERE is_deleted = 0 ORDER BY id DESC"
     ).fetchall()
 
     total_products = conn.execute(
-        "SELECT COUNT(*) FROM products"
+        "SELECT COUNT(*) FROM products WHERE is_deleted = 0"
     ).fetchone()[0]
 
     total_sales = conn.execute(
@@ -289,7 +289,7 @@ def dashboard():
     ).fetchone()[0]
 
     low_stock = conn.execute(
-        "SELECT COUNT(*) FROM products WHERE stock <= 5"
+        "SELECT COUNT(*) FROM products WHERE is_deleted = 0 AND stock <= 5"
     ).fetchone()[0]
 
     # Recent sales with product names
@@ -333,8 +333,8 @@ def add_product():
     conn = get_db_connection()
 
     conn.execute(
-        """INSERT INTO products (name, price, stock, unit)
-           VALUES (?, ?, ?, ?)""",
+        """INSERT INTO products (name, price, stock, unit, is_deleted)
+           VALUES (?, ?, ?, ?, 0)""",
         (name, price, stock, unit)
     )
 
@@ -350,8 +350,11 @@ def delete_product(product_id):
     conn = get_db_connection()
 
     try:
-        # Unlink product from sales so foreign key constraints don't block deletion
+        # 1. Unlink sales records from this product so foreign keys stay clean
         conn.execute("UPDATE sales SET product_id = NULL WHERE product_id = ?", (product_id,))
+        # 2. Mark product as deleted (soft delete)
+        conn.execute("UPDATE products SET is_deleted = 1 WHERE id = ?", (product_id,))
+        # 3. Also physically delete from current db
         conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
         conn.commit()
         flash("Product deleted successfully!")
@@ -384,7 +387,7 @@ def sell_product():
 
     try:
         product = conn.execute(
-            "SELECT * FROM products WHERE id = ?", (product_id,)
+            "SELECT * FROM products WHERE id = ? AND is_deleted = 0", (product_id,)
         ).fetchone()
 
         if product is None:
@@ -494,7 +497,7 @@ def transcribe_audio():
 
             try:
                 product = conn.execute(
-                    "SELECT * FROM products WHERE LOWER(name) = LOWER(?)",
+                    "SELECT * FROM products WHERE LOWER(name) = LOWER(?) AND is_deleted = 0",
                     (product_name,)
                 ).fetchone()
 

@@ -23,7 +23,8 @@ def init_db():
                 name TEXT NOT NULL,
                 price REAL NOT NULL,
                 stock REAL NOT NULL DEFAULT 0,
-                unit TEXT NOT NULL DEFAULT 'kg'
+                unit TEXT NOT NULL DEFAULT 'kg',
+                is_deleted INTEGER NOT NULL DEFAULT 0
             )
         """)
 
@@ -40,9 +41,22 @@ def init_db():
             )
         """)
 
-        # Add initial sample products if table is empty
-        count = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-        if count == 0:
+        # Table to track if seeding was already done once
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+
+        # Add is_deleted column if it doesn't exist (migration for existing db)
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(products)").fetchall()]
+        if "is_deleted" not in cols:
+            conn.execute("ALTER TABLE products ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+
+        # Seed sample products ONLY ONCE
+        seeded = conn.execute("SELECT value FROM meta WHERE key = 'seeded'").fetchone()
+        if not seeded:
             sample_products = [
                 ("Rice", 60.0, 50.0, "kg"),
                 ("Pappu", 120.0, 30.0, "kg"),
@@ -52,9 +66,10 @@ def init_db():
                 ("Atta", 55.0, 35.0, "kg")
             ]
             conn.executemany(
-                "INSERT INTO products (name, price, stock, unit) VALUES (?, ?, ?, ?)",
+                "INSERT INTO products (name, price, stock, unit, is_deleted) VALUES (?, ?, ?, ?, 0)",
                 sample_products
             )
+            conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded', 'true')")
 
         conn.commit()
         conn.close()
