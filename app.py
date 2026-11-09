@@ -718,22 +718,6 @@ def speak_confirm():
     except Exception as e:
         print("TTS Confirm Error:", repr(e))
         return jsonify({"error": "TTS failed"}), 500
-            confirm_text,
-            voice="Shivani",
-            model="timbre-v3.0",
-            language="te-IN"
-        )
-
-        return send_file(
-            BytesIO(audio),
-            mimetype="audio/wav",
-            as_attachment=False,
-            download_name="dukaansaathi_confirm.wav"
-        )
-
-    except Exception as e:
-        print("TTS Confirm Error:", repr(e))
-        return jsonify({"error": "TTS failed"}), 500
 
 
 if __name__ == "__main__":
