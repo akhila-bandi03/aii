@@ -308,6 +308,15 @@ def dashboard():
     if request.method == "POST":
         if "audio" in request.files:
             return transcribe_audio()
+        if request.form.get("delete_product_id"):
+            try:
+                return delete_product(int(request.form.get("delete_product_id")))
+            except Exception:
+                pass
+        if request.form.get("action") == "confirm_voice_sale":
+            return confirm_voice_sale()
+        if request.form.get("action") == "cancel_voice_sale":
+            return cancel_voice_sale()
         if request.form.get("name") and request.form.get("price"):
             return add_product()
         if request.form.get("product_id") and request.form.get("quantity"):
@@ -728,9 +737,12 @@ def cancel_voice_sale():
 
 
 # Text to Speech
-@app.route("/speak", methods=["POST"])
+@app.route("/speak", methods=["GET", "POST"])
 def speak_text():
-    text = request.form.get("text", "").strip()
+    if request.method == "GET":
+        text = request.args.get("text", "").strip()
+    else:
+        text = request.form.get("text", "").strip()
 
     if not text:
         flash("Please enter text for voice response.")

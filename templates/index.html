@@ -535,11 +535,13 @@
             </p>
 
             <div class="confirm-buttons">
-                <form action="{{ url_for('confirm_voice_sale') }}" method="POST">
+                <form action="/confirm_voice_sale" method="POST">
+                    <input type="hidden" name="action" value="confirm_voice_sale">
                     <button type="submit" class="btn-confirm">✅ Confirm Sale</button>
                 </form>
 
-                <form action="{{ url_for('cancel_voice_sale') }}" method="POST">
+                <form action="/cancel_voice_sale" method="POST">
+                    <input type="hidden" name="action" value="cancel_voice_sale">
                     <button type="submit" class="btn-cancel">❌ Cancel Sale</button>
                 </form>
             </div>
@@ -596,7 +598,7 @@
             <audio id="audioPreview" controls hidden></audio>
 
             <form id="voiceForm"
-                  action="{{ url_for('transcribe_audio') }}"
+                  action="/"
                   method="POST"
                   enctype="multipart/form-data">
 
@@ -767,12 +769,14 @@
                             </td>
 
                             <td>
-                                <button type="button"
-                                        class="btn-delete"
-                                        onclick="deleteItem(this, {{ product.id }}, '{{ product.name }}')"
-                                        style="border:none; cursor:pointer; display:inline-block; border-radius:6px; color:white; font-weight:bold;">
-                                    🗑️ Delete
-                                </button>
+                                <form action="/delete_product/{{ product.id }}" method="POST" style="display:inline;" onsubmit="return handleDelete(event, this, {{ product.id }});">
+                                    <input type="hidden" name="delete_product_id" value="{{ product.id }}">
+                                    <button type="submit"
+                                            class="btn-delete"
+                                            style="border:none; cursor:pointer; display:inline-block; border-radius:6px; color:white; font-weight:bold; padding:6px 12px;">
+                                        🗑️ Delete
+                                    </button>
+                                </form>
                             </td>
 
                         </tr>
@@ -1128,24 +1132,21 @@
         );
 
         // Instant Client-Side Delete with localStorage persistence
-        function deleteItem(btn, productId, productName) {
-            if (!confirm("Are you sure you want to delete " + productName + "?")) return;
-
+        function handleDelete(event, form, productId) {
             // 1. Instantly animate and remove the row from table
-            const row = btn.closest("tr");
+            const row = form ? form.closest("tr") : document.querySelector(`tr[data-product-id="${productId}"]`);
             if (row) {
-                row.style.transition = "all 0.25s ease-out";
+                row.style.transition = "all 0.2s ease-out";
                 row.style.transform = "translateX(20px)";
                 row.style.opacity = "0";
                 setTimeout(() => {
                     row.remove();
-                    // Update total products count on screen
                     const countElem = document.querySelector(".stat-card p");
                     if (countElem) {
                         const current = parseInt(countElem.textContent) || 0;
                         if (current > 0) countElem.textContent = current - 1;
                     }
-                }, 250);
+                }, 200);
             }
 
             // 2. Remove from sales dropdown immediately
@@ -1161,8 +1162,21 @@
                 }
             } catch (e) {}
 
-            // 4. Send background delete to server
-            fetch("/delete_product/" + productId, { method: "POST" }).catch(() => {});
+            // 4. Send background delete to server (both /delete_product/ID and / with delete_product_id)
+            fetch("/delete_product/" + productId, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "delete_product_id=" + productId
+            }).catch(() => {});
+
+            if (event && event.preventDefault) {
+                event.preventDefault();
+            }
+            return false;
+        }
+
+        function deleteItem(btn, productId, productName) {
+            return handleDelete(null, btn, productId);
         }
 
         // On Page Load: Filter out any deleted items immediately
