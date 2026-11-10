@@ -140,7 +140,7 @@ Rules:
                 "temperature": 0.1,
                 "max_tokens": 200
             },
-            timeout=15
+            timeout=3
         )
 
         if response.status_code == 200:
@@ -528,17 +528,11 @@ def transcribe_audio():
         flash("No audio selected.")
         return redirect(url_for("dashboard"))
 
-    temp_path = None
-
     try:
-        # Save uploaded audio as a temporary WAV file
-        with tempfile.NamedTemporaryFile(
-            suffix=".wav",
-            delete=False
-        ) as temp_audio:
-            temp_path = temp_audio.name
-
-        audio.save(temp_path)
+        audio_bytes = audio.read()
+        if not audio_bytes or len(audio_bytes) < 100:
+            flash("Audio recording was empty or too short. Please speak clearly.")
+            return redirect(url_for("dashboard"))
 
         # Get product names for STT keyword boosting
         product_keywords = get_product_keywords()
@@ -548,9 +542,10 @@ def transcribe_audio():
             flash("Gnani API Key is missing or invalid. Please check settings.")
             return redirect(url_for("dashboard"))
 
-        # Send WAV file path to Gnani STT (Prisma) with keyword boosting
-        result = client.transcribe(
-            temp_path,
+        # Send audio bytes directly to Gnani STT (Prisma) with keyword boosting
+        result = client.transcribe_bytes(
+            audio_bytes,
+            filename="recording.wav",
             language_code="te-IN",
             keywords=product_keywords if product_keywords else None,
             topic="kirana shop sales inventory"
@@ -628,12 +623,10 @@ def transcribe_audio():
             flash("No speech detected. Please try again.")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print("STT Error:", repr(e))
-        flash("Voice processing failed. Please try again.")
-
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+        flash(f"Voice processing failed: {str(e)}")
 
     return redirect(url_for("dashboard"))
 
