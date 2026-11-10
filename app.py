@@ -289,9 +289,30 @@ def extract_sale_details(transcript):
 
 # ── Routes ──
 
-@app.route("/")
-@app.route("/api/index")
+@app.route("/debug-headers", methods=["GET", "POST"])
+def debug_headers():
+    """Temporary debug endpoint to see what headers Vercel sends."""
+    env_data = {k: v for k, v in request.environ.items() if isinstance(v, str)}
+    headers_data = dict(request.headers)
+    return jsonify({
+        "method": request.method,
+        "path_info": request.environ.get("PATH_INFO"),
+        "headers": headers_data,
+        "environ_str_keys": env_data,
+    })
+
+
+@app.route("/", methods=["GET", "POST"])
+@app.route("/api/index", methods=["GET", "POST"])
 def dashboard():
+    if request.method == "POST":
+        if "audio" in request.files:
+            return transcribe_audio()
+        if request.form.get("name") and request.form.get("price"):
+            return add_product()
+        if request.form.get("product_id") and request.form.get("quantity"):
+            return sell_product()
+
     deleted_ids = set(session.get("deleted_ids", []))
 
     conn = get_db_connection()
