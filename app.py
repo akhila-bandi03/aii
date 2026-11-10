@@ -341,8 +341,10 @@ def dashboard():
     )
 
 
-@app.route("/add_product", methods=["POST"])
+@app.route("/add_product", methods=["GET", "POST"])
 def add_product():
+    if request.method == "GET":
+        return redirect(url_for("dashboard"))
     name = request.form.get("name", "").strip()
     unit = request.form.get("unit", "kg").strip()
 
@@ -409,8 +411,10 @@ def delete_product(product_id):
     return redirect(url_for("dashboard"))
 
 
-@app.route("/sell_product", methods=["POST"])
+@app.route("/sell_product", methods=["GET", "POST"])
 def sell_product():
+    if request.method == "GET":
+        return redirect(url_for("dashboard"))
     customer_name = request.form.get("customer_name", "").strip()
 
     try:
@@ -469,8 +473,10 @@ def sell_product():
     return redirect(url_for("dashboard"))
 
 
-@app.route("/transcribe", methods=["POST"])
+@app.route("/transcribe", methods=["GET", "POST"])
 def transcribe_audio():
+    if request.method == "GET":
+        return redirect(url_for("dashboard"))
 
     if "audio" not in request.files:
         flash("Please record your voice first.")
@@ -593,8 +599,10 @@ def transcribe_audio():
 
 
 # Confirm Voice Sale
-@app.route("/confirm_voice_sale", methods=["POST"])
+@app.route("/confirm_voice_sale", methods=["GET", "POST"])
 def confirm_voice_sale():
+    if request.method == "GET":
+        return redirect(url_for("dashboard"))
 
     pending_sale = session.get("pending_sale")
 
@@ -691,13 +699,10 @@ def confirm_voice_sale():
 
 
 # Cancel Voice Sale
-@app.route("/cancel_voice_sale", methods=["POST"])
+@app.route("/cancel_voice_sale", methods=["GET", "POST"])
 def cancel_voice_sale():
-
     session.pop("pending_sale", None)
-
     flash("Voice sale cancelled. No changes were made to inventory.")
-
     return redirect(url_for("dashboard"))
 
 
