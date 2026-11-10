@@ -754,7 +754,7 @@
 
                         {% for product in products %}
 
-                        <tr>
+                        <tr data-product-id="{{ product.id }}">
                             <td><strong>{{ product.name }}</strong></td>
 
                             <td>
@@ -767,12 +767,12 @@
                             </td>
 
                             <td>
-                                <a href="{{ url_for('delete_product', product_id=product.id) }}"
-                                   class="btn-delete"
-                                   onclick="return confirm('Delete {{ product.name }}?');"
-                                   style="text-decoration:none; display:inline-block; border-radius:6px; color:white; font-weight:bold;">
-                                   🗑️ Delete
-                                </a>
+                                <button type="button"
+                                        class="btn-delete"
+                                        onclick="deleteItem(this, {{ product.id }}, '{{ product.name }}')"
+                                        style="border:none; cursor:pointer; display:inline-block; border-radius:6px; color:white; font-weight:bold;">
+                                    🗑️ Delete
+                                </button>
                             </td>
 
                         </tr>
@@ -1126,6 +1126,65 @@
 
             }
         );
+
+        // Instant Client-Side Delete with localStorage persistence
+        function deleteItem(btn, productId, productName) {
+            if (!confirm("Are you sure you want to delete " + productName + "?")) return;
+
+            // 1. Instantly animate and remove the row from table
+            const row = btn.closest("tr");
+            if (row) {
+                row.style.transition = "all 0.25s ease-out";
+                row.style.transform = "translateX(20px)";
+                row.style.opacity = "0";
+                setTimeout(() => {
+                    row.remove();
+                    // Update total products count on screen
+                    const countElem = document.querySelector(".stat-card p");
+                    if (countElem) {
+                        const current = parseInt(countElem.textContent) || 0;
+                        if (current > 0) countElem.textContent = current - 1;
+                    }
+                }, 250);
+            }
+
+            // 2. Remove from sales dropdown immediately
+            const opt = document.querySelector(`select[name="product_id"] option[value="${productId}"]`);
+            if (opt) opt.remove();
+
+            // 3. Save to localStorage so refreshing the page NEVER brings it back
+            try {
+                let deleted = JSON.parse(localStorage.getItem("dukaan_deleted_ids") || "[]");
+                if (!deleted.includes(productId)) {
+                    deleted.push(productId);
+                    localStorage.setItem("dukaan_deleted_ids", JSON.stringify(deleted));
+                }
+            } catch (e) {}
+
+            // 4. Send background delete to server
+            fetch("/delete_product/" + productId, { method: "POST" }).catch(() => {});
+        }
+
+        // On Page Load: Filter out any deleted items immediately
+        document.addEventListener("DOMContentLoaded", function () {
+            try {
+                const deleted = JSON.parse(localStorage.getItem("dukaan_deleted_ids") || "[]");
+                if (deleted.length > 0) {
+                    deleted.forEach(id => {
+                        const row = document.querySelector(`tr[data-product-id="${id}"]`);
+                        if (row) row.remove();
+                        const opt = document.querySelector(`select[name="product_id"] option[value="${id}"]`);
+                        if (opt) opt.remove();
+                    });
+                    // Recalculate remaining rows count
+                    const remainingRows = document.querySelectorAll("tbody tr[data-product-id]").length;
+                    const countElem = document.querySelector(".stat-card p");
+                    if (countElem && remainingRows >= 0) {
+                        countElem.textContent = remainingRows;
+                    }
+                }
+            } catch (e) {}
+        });
 
         // Auto-play TTS confirmation after sale is confirmed
         window.addEventListener("DOMContentLoaded", async function () {
