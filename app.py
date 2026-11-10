@@ -544,14 +544,23 @@ def transcribe_audio():
             flash("Gnani API Key is missing or invalid. Please check settings.")
             return redirect(url_for("dashboard"))
 
-        # Send audio bytes directly to Gnani STT (Prisma) with keyword boosting
-        result = client.transcribe_bytes(
-            audio_bytes,
-            filename="recording.wav",
-            language_code="te-IN",
-            keywords=product_keywords if product_keywords else None,
-            topic="kirana shop sales inventory"
-        )
+        # Send audio bytes directly to Gnani STT (Prisma v3.0) with keyword boosting
+        try:
+            result = client.transcribe_bytes(
+                audio_bytes,
+                filename="recording.wav",
+                language_code="te-IN",
+                model="prisma-v3.0",
+                keywords=product_keywords if product_keywords else None,
+                topic="kirana shop sales inventory"
+            )
+        except Exception as stt_err:
+            print("[WARN] prisma-v3.0 with keywords failed, falling back to standard STT:", stt_err)
+            result = client.transcribe_bytes(
+                audio_bytes,
+                filename="recording.wav",
+                language_code="te-IN"
+            )
 
         transcript = result.get("transcript", "")
 
