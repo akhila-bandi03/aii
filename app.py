@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "dukaansaathi-local-secret")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dukaansaathi-persistent-auth-key-2026")
 
 _db_initialized = False
 
@@ -32,6 +32,23 @@ def ensure_db():
         except Exception as e:
             print("[WARN] DB init failed:", e)
         _db_initialized = True
+
+    # Re-insert any user-added custom products from session into new container DB
+    custom_products = session.get("custom_products", [])
+    if custom_products:
+        try:
+            conn = get_db_connection()
+            for cp in custom_products:
+                exists = conn.execute("SELECT id FROM products WHERE name = ? AND price = ?", (cp["name"], cp["price"])).fetchone()
+                if not exists:
+                    conn.execute(
+                        "INSERT INTO products (name, price, stock, unit, is_deleted) VALUES (?, ?, ?, ?, 0)",
+                        (cp["name"], cp["price"], cp["stock"], cp["unit"])
+                    )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("[SYNC CUSTOM PRODUCTS ERROR]", e)
 
 
 def get_stt_client():
@@ -60,10 +77,11 @@ def get_tts_client():
 
 def get_product_keywords():
     """Return all active product names from the database as a list."""
+    deleted_ids = set(session.get("deleted_ids", []))
     conn = get_db_connection()
     try:
-        rows = conn.execute("SELECT name FROM products WHERE is_deleted = 0").fetchall()
-        return [row["name"] for row in rows]
+        rows = conn.execute("SELECT id, name FROM products WHERE is_deleted = 0").fetchall()
+        return [row["name"] for row in rows if row["id"] not in deleted_ids]
     finally:
         conn.close()
 
@@ -274,23 +292,32 @@ def extract_sale_details(transcript):
 @app.route("/")
 @app.route("/api/index")
 def dashboard():
+    deleted_ids = set(session.get("deleted_ids", []))
+
     conn = get_db_connection()
 
-    products = conn.execute(
+    # Sync DB with session deleted_ids in case it's a new container
+    if deleted_ids:
+        try:
+            placeholders = ",".join("?" for _ in deleted_ids)
+            conn.execute(f"UPDATE products SET is_deleted = 1 WHERE id IN ({placeholders})", list(deleted_ids))
+            conn.commit()
+        except Exception as e:
+            print("[SYNC ERROR]", e)
+
+    all_products = conn.execute(
         "SELECT * FROM products WHERE is_deleted = 0 ORDER BY id DESC"
     ).fetchall()
 
-    total_products = conn.execute(
-        "SELECT COUNT(*) FROM products WHERE is_deleted = 0"
-    ).fetchone()[0]
+    # Filter out any deleted IDs
+    products = [p for p in all_products if p["id"] not in deleted_ids]
+    total_products = len(products)
 
     total_sales = conn.execute(
         "SELECT COALESCE(SUM(total), 0) FROM sales"
     ).fetchone()[0]
 
-    low_stock = conn.execute(
-        "SELECT COUNT(*) FROM products WHERE is_deleted = 0 AND stock <= 5"
-    ).fetchone()[0]
+    low_stock = sum(1 for p in products if p["stock"] <= 5)
 
     # Recent sales with product names
     recent_sales = conn.execute("""
@@ -332,14 +359,21 @@ def add_product():
 
     conn = get_db_connection()
 
-    conn.execute(
+    cursor = conn.cursor()
+    cursor.execute(
         """INSERT INTO products (name, price, stock, unit, is_deleted)
            VALUES (?, ?, ?, ?, 0)""",
         (name, price, stock, unit)
     )
-
+    new_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    # Save to session custom products so cold starts remember it
+    custom_products = session.get("custom_products", [])
+    custom_products.append({"name": name, "price": price, "stock": stock, "unit": unit})
+    session["custom_products"] = custom_products
+    session.modified = True
 
     flash("Product added successfully!")
     return redirect(url_for("dashboard"))
@@ -347,6 +381,13 @@ def add_product():
 
 @app.route("/delete_product/<int:product_id>", methods=["GET", "POST"])
 def delete_product(product_id):
+    # Store in session list of deleted IDs
+    deleted_ids = list(session.get("deleted_ids", []))
+    if product_id not in deleted_ids:
+        deleted_ids.append(product_id)
+    session["deleted_ids"] = deleted_ids
+    session.modified = True
+
     conn = get_db_connection()
 
     try:
