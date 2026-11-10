@@ -1130,18 +1130,19 @@
         // Auto-play TTS confirmation after sale is confirmed
         window.addEventListener("DOMContentLoaded", async function () {
             try {
-                const response = await fetch("/speak_confirm", {
-                    method: "POST"
+                const response = await fetch("{{ url_for('speak_confirm') }}", {
+                    method: "GET"
                 });
 
-                if (response.ok) {
+                const contentType = response.headers.get("content-type");
+                if (response.ok && contentType && contentType.includes("audio")) {
                     const audioBlob = await response.blob();
                     const audio = new Audio(URL.createObjectURL(audioBlob));
                     await audio.play();
-                    console.log("TTS sale confirmation played");
+                    console.log("TTS sale confirmation played successfully");
                 }
             } catch (e) {
-                // No confirmation to play — that's fine
+                // Idle or blocked autoplay
             }
         });
 

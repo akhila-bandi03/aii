@@ -737,12 +737,12 @@ def speak_text():
 
 
 # TTS Confirmation endpoint (auto-speak after sale confirmation)
-@app.route("/speak_confirm", methods=["POST"])
+@app.route("/speak_confirm", methods=["GET", "POST"])
 def speak_confirm():
     confirm_text = session.pop("tts_confirm", None)
 
     if not confirm_text:
-        return jsonify({"error": "No confirmation to speak"}), 404
+        return jsonify({"status": "idle"}), 200
 
     try:
         client = get_tts_client()
