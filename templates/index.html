@@ -569,6 +569,26 @@
 
         </section>
 
+        {% if not has_api_key %}
+        <!-- Gnani API Key Banner -->
+        <section class="panel" style="border: 2px dashed #f59e0b; background: #fffbeb; margin-bottom: 16px;">
+            <h2 style="color: #b45309; font-size: 1.1em; margin-bottom: 8px;">🔑 Connect Gnani AI API Key</h2>
+            <p style="color: #92400e; margin-bottom: 12px; font-size: 0.9em; line-height: 1.4;">
+                Enter your Gnani API Key once to enable Prisma STT voice sales & Timbre TTS confirmations:
+            </p>
+            <form action="/" method="POST" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <input type="password"
+                       name="set_gnani_key"
+                       placeholder="Paste Gnani API Key (vach_...)"
+                       style="flex: 1 1 240px; padding: 10px 14px; border: 1px solid #d97706; border-radius: 8px; font-size: 14px; background: white;"
+                       required>
+                <button type="submit" style="background: #d97706; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                    Connect Key
+                </button>
+            </form>
+        </section>
+        {% endif %}
+
         <!-- Voice Assistant -->
         <section class="panel voice-panel">
 

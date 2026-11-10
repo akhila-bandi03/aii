@@ -52,7 +52,7 @@ def ensure_db():
 
 
 def get_stt_client():
-    key = os.getenv("GNANI_API_KEY")
+    key = os.getenv("GNANI_API_KEY") or session.get("gnani_api_key")
     if not key:
         return None
     try:
@@ -63,7 +63,7 @@ def get_stt_client():
 
 
 def get_tts_client():
-    key = os.getenv("GNANI_API_KEY")
+    key = os.getenv("GNANI_API_KEY") or session.get("gnani_api_key")
     if not key:
         return None
     try:
@@ -306,6 +306,13 @@ def debug_headers():
 @app.route("/api/index", methods=["GET", "POST"])
 def dashboard():
     if request.method == "POST":
+        if request.form.get("set_gnani_key"):
+            key = request.form.get("set_gnani_key").strip()
+            if key:
+                session["gnani_api_key"] = key
+                session.modified = True
+                flash("Gnani API Key connected successfully!")
+            return redirect(url_for("dashboard"))
         if "audio" in request.files:
             return transcribe_audio()
         if request.form.get("delete_product_id"):
@@ -360,6 +367,8 @@ def dashboard():
 
     conn.close()
 
+    has_api_key = bool(os.getenv("GNANI_API_KEY") or session.get("gnani_api_key"))
+
     return render_template(
         "index.html",
         products=products,
@@ -367,7 +376,8 @@ def dashboard():
         total_sales=total_sales,
         low_stock=low_stock,
         recent_sales=recent_sales,
-        pending_sale=session.get("pending_sale")
+        pending_sale=session.get("pending_sale"),
+        has_api_key=has_api_key
     )
 
 
