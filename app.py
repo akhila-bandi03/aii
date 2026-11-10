@@ -324,6 +324,8 @@ def dashboard():
             return confirm_voice_sale()
         if request.form.get("action") == "cancel_voice_sale":
             return cancel_voice_sale()
+        if request.form.get("text") and not request.form.get("name"):
+            return speak_text()
         if request.form.get("name") and request.form.get("price"):
             return add_product()
         if request.form.get("product_id") and request.form.get("quantity"):
@@ -748,14 +750,12 @@ def speak_text():
         text = request.form.get("text", "").strip()
 
     if not text:
-        flash("Please enter text for voice response.")
-        return redirect(url_for("dashboard"))
+        return jsonify({"error": "Please enter text for voice response."}), 400
 
     try:
         client = get_tts_client()
         if not client:
-            flash("Gnani API Key is missing.")
-            return redirect(url_for("dashboard"))
+            return jsonify({"error": "Gnani API Key is missing or invalid."}), 400
 
         audio = client.synthesize(
             text,
@@ -772,9 +772,10 @@ def speak_text():
         )
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print("TTS Error:", repr(e))
-        flash("Voice generation failed. Please try again.")
-        return redirect(url_for("dashboard"))
+        return jsonify({"error": str(e)}), 500
 
 
 # TTS Confirmation endpoint (auto-speak after sale confirmation)

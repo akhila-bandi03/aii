@@ -1124,26 +1124,34 @@
                         body: formData
                     });
 
-                    if (!response.ok) {
-                        throw new Error("Voice generation failed");
+                    const contentType = response.headers.get("content-type") || "";
+                    if (!response.ok || contentType.includes("json") || contentType.includes("html")) {
+                        let errMsg = "Voice generation failed";
+                        try {
+                            const errJson = await response.json();
+                            errMsg = errJson.error || errMsg;
+                        } catch (e) {}
+                        throw new Error(errMsg);
                     }
 
                     const audioBlob = await response.blob();
-
                     player.src = URL.createObjectURL(audioBlob);
                     player.hidden = false;
 
                     status.textContent = "✅ Voice generated successfully!";
                     status.style.color = "#16a34a";
 
-                    await player.play();
+                    try {
+                        await player.play();
+                    } catch (playErr) {
+                        // User can tap the player play button
+                    }
 
                 } catch (error) {
 
                     console.error(error);
 
-                    status.textContent =
-                        "❌ Voice generation failed. Check terminal.";
+                    status.textContent = "❌ " + (error.message || "Voice generation failed.");
                     status.style.color = "#dc2626";
 
                 }
